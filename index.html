@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AI Agent Success Rate Timeline</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0e1a; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+</style>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+
+// ===== i18n DICTIONARY =====
+const i = {
+  kr: {
+    title: "AI Agent 성공률 타임라인 — 3 Scenarios",
+    yLabel: "SWE-bench Verified Per Agent (%)", xLabel: "Time (year)",
+    baseline: "기준선",
+    chartNote: ["AI 에이전트 하나의 성공률이 95%면,","4개를 엮었을 때 0.95⁴ = 81%로","실용 기준(80%)을 넘긴다 —","낙관적 전망의 경우, 그 시점이 2027년이다."],
+    leg: { actual: "실측", realistic: "현실적", optimistic: "낙관", conservative: "보수", baseline: "80% 기준선" },
+    scenLabels: ["낙관", "현실적", "보수"],
+    scenarioTitle: "시나리오별 비교",
+    opt: { t: "🟢 낙관적", d: "AI 발전 속도가 지금처럼\n계속 빨라진다면" },
+    real: { t: "🟡 현실적", d: "발전은 계속되지만, 점점 느려지고\n실무 적용에 시간이 걸린다면" },
+    cons: { t: "🔴 보수적", d: "자율주행차처럼, 거의 다 된 것 같은데\n마지막이 10년 넘게 걸린다면" },
+    keyPeople: "대표 인물", threshold: "에이전트 임계점",
+    yAxisTitle: "📐 Y축 — SWE-bench Verified란?",
+    yAxisDef: "실제 오픈소스 Python 프로젝트(Django, scikit-learn 등 12개 리포지토리)에서 수집한 500개의 실제 GitHub 이슈를 AI 에이전트에게 ",
+    yAxisHL: "이슈 설명과 코드베이스만 제공",
+    yAxisDef2: "한 뒤, 스스로 코드를 수정하여 유닛 테스트를 통과시키는 비율을 측정하는 소프트웨어 엔지니어링 벤치마크.",
+    yAxisScore: "현재 최고 모델이 80.8% = 500개 중 ~404개 성공, ~96개 실패.",
+    yAxisEx: "구체적으로 이런 수준의 작업입니다:",
+    ex: [
+      '✅ "이 함수에서 null pointer 나는데 고쳐줘" → 고침',
+      '✅ "Django QuerySet 체이닝 결과가 틀리게 나오는 버그" → 고침',
+      '✅ "이 API 엔드포인트에 validation 빠져있는데 추가해줘" → 수행함',
+      '✅ 에릭슨 기준: "PFCP Association Setup Request에서 특정 IE가 잘못 나오는 버그 수정"',
+    ],
+    exFail: "❌ 여러 모듈에 걸친 복잡한 리팩토링, 아키텍처 설계 변경 등은 아직 실패 영역",
+    yAxisNote: '💡 실무에서 컨텍스트를 주고 대화하며 쓰면 체감 성공률은 더 높음. SWE-bench는 "아무 맥락 없이 혼자" 기준이라 보수적.',
+    warning: '2026 이후 모든 곡선은 추정치입니다.',
+    srcTitle: "📋 산정 근거 및 데이터 출처",
+    expand: "▼ 펼치기", collapse: "▲ 접기",
+    actTitle: "📊 실측 데이터",
+    actDesc: "2024.07~2026.02 구간의 실제 모델 점수. SWE-bench Verified 공식 리더보드 기준.",
+    fwTitle: "🔬 추정에 사용한 11개 근거",
+    fwIntro: "아래 근거들을 교차 비교하여 3개 시나리오 곡선을 산정했습니다.",
+    fwIntro2: "크게 3가지 질문에 답하는 구조입니다:",
+    fwQ: [" 얼마나 빨리 좋아지나?", " 언제 느려지나?", " 전문가들은 어떻게 보나?"],
+    cat: [
+      "🟢 얼마나 빨리 좋아지고 있나? — 곡선의 기울기를 결정",
+      "🟠 언제 느려지나? — 곡선이 꺾이는 지점을 결정",
+      "🔵 전문가·커뮤니티는 어떻게 보나? — 시나리오별 시점 보정",
+    ],
+    contrib: "→ 그래프 기여: ",
+    speed: [
+      { n: "METR — AI 자율 작업 시간", d: "AI가 혼자 해낼 수 있는 작업이 반년마다 2배씩 길어지고 있다. 지금은 ~1시간짜리까지 가능한데, 이 속도면 2028년엔 하루짜리, 2030년엔 일주일짜리도 혼자 할 수 있게 된다", w: "그래프에서 곡선이 얼마나 빨리 올라가는지를 결정하는 핵심 데이터" },
+      { n: "ECI — AI 능력 종합 점수", d: "37개 시험을 합산한 AI 종합 성적표. 매년 꾸준히 오르고 있어서, METR 데이터가 과장이 아닌지 교차 확인하는 용도", w: "METR만 믿으면 편향될 수 있으니까, 다른 각도에서 같은 추세인지 확인" },
+      { n: "Epoch AI — 학습용 컴퓨터 투자", d: "AI 학습에 쓰는 컴퓨팅 자원이 매년 4~5배씩 늘고 있다. 지금 $10B짜리 데이터센터가 곧 $100B로. 빅테크가 연간 수천억 달러 투자 중", w: '"앞으로도 발전할 연료(돈, 하드웨어)가 있나?" → 있다는 증거' },
+      { n: "Densing Law — 소프트웨어도 빨라지는 중", d: "하드웨어뿐 아니라 알고리즘도 매년 ~10배 효율화. 같은 컴퓨터로 10배 더 잘하게 되는 속도", w: "하드웨어 투자(↑)와 알고리즘 효율(↑)을 곱하면 실질 발전 속도 = 연 수십 배" },
+    ],
+    limits: [
+      { n: "SWE-bench 정체 — 이미 꺾이고 있다", d: "최신 모델 4개가 전부 80%대에서 멈춤. 새 모델을 내놔도 더 안 오른다. 천장에 부딪힌 직접적인 증거", w: '"지금 직선으로 올라가는 게 아니라 S자로 꺾이기 시작했다"는 실측 데이터' },
+      { n: "Prescriptive Scaling — 왜 느려지는지의 수학", d: "95%→99%로 올리려면 컴퓨터를 10배 더 써야 한다. 99%→99.9%는 또 10배. 올라갈수록 기하급수적으로 비싸고 어려워진다", w: '추가 "9" 하나마다 2~3년 걸리는 이유를 수학적으로 설명' },
+      { n: "신뢰도 ≠ 능력 — 똑똑해져도 실수는 줄지 않는다", d: "14개 모델을 테스트했더니, 더 큰 모델이 오히려 답이 들쭉날쭉한 경우도 있었다. 머리가 좋아지는 것과 매번 같은 결과를 내는 건 별개 문제", w: '"모델이 좋아지면 자동으로 신뢰할 수 있게 되겠지"가 틀렸다는 증거' },
+      { n: "자율주행 — 역사가 말해주는 패턴", d: '자율주행차는 2015년쯤 "거의 다 됐다" 했는데, 11년 지난 지금도 특정 지역에서만 운행 중. 마지막 5%가 처음 95%만큼 걸리는 실제 사례', w: "AI 에이전트도 같은 패턴을 밟을 수 있다는 역사적 경고" },
+    ],
+    experts: [
+      { n: 'Dario Amodei — "지금 속도가 계속된다" 쪽 대표', d: 'Anthropic CEO. "RL 학습에서도 투자한 만큼 성능이 올라가는 법칙이 보인다"고 주장. 낙관 시나리오의 핵심 근거', w: "낙관 곡선이 이 사람 말을 기반으로 그려짐. 단, 자기 회사 투자 유치 인센티브 있음" },
+      { n: "AI 2027 프로젝트 — 예측 vs 현실 채점표", d: '2024년에 "2025년엔 이만큼 발전할 것"이라고 예측했는데, 실제로는 예측의 58~66%만 달성. 낙관론을 40% 깎아야 하는 근거', w: '"전문가 예측은 항상 실제보다 빠르다"는 보정값. 현실적 시나리오의 핵심' },
+      { n: "Metaculus — 수천 명이 베팅하는 예측 시장", d: "누구나 참여할 수 있는 예측 플랫폼. AGI 도달 중앙값 2028~2037. 낙관론자와 비관론자가 돈을 걸고 겨루는 곳", w: '"군중 지혜"로 3개 시나리오의 시간 범위를 잡는 앵커(기준점)' },
+    ],
+    cavTitle: "⚠️ 읽기 전 알아둘 것",
+    cavs: [
+      "2026 이후 모든 곡선은 **추정**이며 실제와 다를 수 있음",
+      "낙관론자 = AI 기업 CEO (투자 유치 인센티브), 보수론자 = 학계 (과대예측 경계 인센티브)",
+    ],
+    cavBreak: "새로운 돌파가 나오면 곡선이 **급가속**할 수 있음. 반대로 스케일링 법칙이 꺾이면 **전 시나리오가 수년~수십년 지연**될 수 있음",
+    meta: ["작성: 2026.02 · Claude Deep Research", "마지막 실측: Opus 4.6 (80.8%)"],
+    est: "추정",
+    descs: ["단순 질의응답", "단일 작업 보조", "에이전트 코파일럿", "⚡ Agent 특이점", "개인 작업 보조"],
+    mDescs: ["개인작업 자동화", "팀 단위 자동화", "부서 자동화", "조직 자동화"],
+    mAgents: ["3~5", "10~20", "50~100", "1000+"],
+  },
+  en: {
+    title: "AI Agent Success Rate Timeline — 3 Scenarios",
+    yLabel: "SWE-bench Verified Per Agent (%)", xLabel: "Time (year)",
+    baseline: "Baseline",
+    chartNote: ["If a single AI agent has 95% success rate,","chaining 4 gives 0.95⁴ = 81%, clearing the","80% practical threshold — in the optimistic","scenario, that point is 2027."],
+    leg: { actual: "Actual", realistic: "Realistic", optimistic: "Optimistic", conservative: "Conservative", baseline: "80% Baseline" },
+    scenLabels: ["Opt.", "Realistic", "Cons."],
+    scenarioTitle: "Scenario Comparison",
+    opt: { t: "🟢 Optimistic", d: "If AI keeps accelerating\nat the current pace" },
+    real: { t: "🟡 Realistic", d: "Progress continues but slows down,\nand real-world adoption takes time" },
+    cons: { t: "🔴 Conservative", d: "Like self-driving cars — seems almost done\nbut the last mile takes 10+ years" },
+    keyPeople: "Key Figures", threshold: "Agent Milestones",
+    yAxisTitle: "📐 Y-Axis — What is SWE-bench Verified?",
+    yAxisDef: "A software engineering benchmark that collects 500 real GitHub issues from 12 open-source Python projects (Django, scikit-learn, etc.), gives the AI agent ",
+    yAxisHL: "only the issue description and codebase",
+    yAxisDef2: ", then measures the rate at which it independently modifies code to pass unit tests.",
+    yAxisScore: "Current best model: 80.8% = ~404 of 500 solved, ~96 failed.",
+    yAxisEx: "Concretely, these are the kinds of tasks:",
+    ex: [
+      '✅ "Fix the null pointer in this function" → Fixed',
+      '✅ "Django QuerySet chaining returns wrong results" → Fixed',
+      '✅ "Add missing validation to this API endpoint" → Done',
+      '✅ Telecom example: "Fix incorrect IE in PFCP Association Setup Request"',
+    ],
+    exFail: "❌ Complex multi-module refactoring, architecture redesign — still fails",
+    yAxisNote: '💡 In practice, providing context and iterating in conversation yields higher success. SWE-bench measures "no hints, fully autonomous" — a conservative baseline.',
+    warning: 'All curves after 2026 are estimates.',
+    srcTitle: "📋 Methodology & Data Sources",
+    expand: "▼ Expand", collapse: "▲ Collapse",
+    actTitle: "📊 Measured Data",
+    actDesc: "Actual model scores from Jul 2024 – Feb 2026. SWE-bench Verified official leaderboard.",
+    fwTitle: "🔬 11 Frameworks Used for Estimation",
+    fwIntro: "These frameworks were cross-compared to derive the 3 scenario curves.",
+    fwIntro2: "They answer 3 key questions:",
+    fwQ: [" How fast is it improving?", " When does it slow down?", " What do experts think?"],
+    cat: [
+      "🟢 How fast is AI improving? — Determines curve slope",
+      "🟠 When does it slow down? — Determines where curves flatten",
+      "🔵 What do experts & communities predict? — Calibrates scenario timing",
+    ],
+    contrib: "→ Chart contribution: ",
+    speed: [
+      { n: "METR — AI Autonomous Task Duration", d: "Tasks AI can complete alone are doubling every ~6 months. Currently ~1hr tasks. At this rate: day-long tasks by 2028, week-long by 2030", w: "The single most important dataset for determining how fast the curves rise" },
+      { n: "ECI — AI Capability Composite Score", d: "A combined scorecard across 37 benchmarks. Rising steadily each year — used to cross-verify METR isn't an outlier", w: "If only METR showed improvement it could be biased — ECI confirms from a different angle" },
+      { n: "Epoch AI — Training Compute Investment", d: "Computing resources for AI training growing 4-5x/year. $10B data centers scaling to $100B. Big Tech investing hundreds of billions annually", w: 'Answers: "Is there fuel (money, hardware) to keep improving?" → Yes' },
+      { n: "Densing Law — Software Is Getting Faster Too", d: "Not just hardware — algorithms are ~10x more efficient per year. Same computer, 10x better results", w: "Hardware (↑) × algorithm efficiency (↑) = real improvement of tens of times per year" },
+    ],
+    limits: [
+      { n: "SWE-bench Plateau — Already Flattening", d: "Top 4 models from different labs all stuck at 80%. New models don't score higher. Direct evidence of hitting a ceiling", w: "Proof that progress isn't linear — it's bending into an S-curve" },
+      { n: "Prescriptive Scaling — The Math of Diminishing Returns", d: "Going from 95% to 99% requires 10x more compute. 99% to 99.9% another 10x. Each step gets exponentially harder", w: 'Mathematically explains why each additional "9" takes 2-3 years' },
+      { n: "Reliability ≠ Capability — Smarter ≠ More Consistent", d: "Testing 14 models showed larger models can be less consistent. Being smarter and giving the same answer every time are separate problems", w: 'Disproves "better models automatically become more reliable"' },
+      { n: "Self-Driving Cars — What History Tells Us", d: 'Self-driving was "almost there" around 2015. 11 years later, still limited areas only. The last 5% took as long as the first 95%', w: "A historical warning that AI agents could follow the same pattern" },
+    ],
+    experts: [
+      { n: 'Dario Amodei — The "Current Pace Continues" Camp', d: 'Anthropic CEO. Claims RL training shows same scaling laws as pre-training. Core basis for the optimistic scenario', w: "Optimistic curve is built on his claims. Note: incentive to attract investment" },
+      { n: "AI 2027 Project — Prediction vs Reality Scorecard", d: "Predicted 2025 progress, but actual results were only 58-66% of forecast. Evidence that optimism needs a ~40% discount", w: '"Expert predictions always overshoot" — key correction for the realistic scenario' },
+      { n: "Metaculus — Prediction Market with Thousands of Bettors", d: "Open prediction platform. Median AGI: 2028-2037. Where optimists and pessimists put money where their mouth is", w: '"Wisdom of crowds" anchor for setting the time range of all 3 scenarios' },
+    ],
+    cavTitle: "⚠️ Before Reading, Keep in Mind",
+    cavs: [
+      "All curves after 2026 are **estimates** and may differ from reality",
+      "Optimists = AI company CEOs (fundraising incentive), Pessimists = academia (caution incentive)",
+    ],
+    cavBreak: "Breakthroughs could **dramatically accelerate** the curves. Conversely, if scaling laws break, **all scenarios could be delayed by years to decades**",
+    meta: ["Created: 2026.02 · Claude Deep Research", "Last measured: Opus 4.6 (80.8%)"],
+    est: "Est.",
+    descs: ["Simple Q&A", "Single task assist", "Agent copilot", "⚡ Agent Singularity", "Personal assistant"],
+    mDescs: ["Personal automation", "Team automation", "Dept. automation", "Org. automation"],
+    mAgents: ["3~5", "10~20", "50~100", "1000+"],
+  },
+};
+
+// People data
+const ppl = {
+  opt: [
+    { name: "Dario Amodei", role: "Anthropic CEO", quote: "Country of geniuses ~2027" },
+    { name: "Elon Musk", role: "xAI / Tesla", qk: "인간보다 나은 AI 2026", qe: "AI surpassing humans 2026" },
+    { name: "Sam Altman", role: "OpenAI CEO", qk: "트럼프 임기 중 AGI", qe: "AGI during Trump's term" },
+  ],
+  real: [
+    { name: "Demis Hassabis", role: "DeepMind CEO", qk: "AGI 50% by 2030, 2~3개 혁신 필요", qe: "AGI 50% by 2030, 2-3 breakthroughs needed" },
+    { name: "Eric Schmidt", rk: "전 Google CEO", re: "Former Google CEO", qk: "3~5년 내 AGI (2025 기준)", qe: "AGI within 3-5 years (as of 2025)" },
+  ],
+  cons: [
+    { name: "Yann LeCun", rk: "Meta AI 수석 · 튜링상", re: "Meta AI Chief · Turing Award", qk: "LLM으로 AGI 절대 불가. 10년+", qe: "AGI impossible with LLMs. 10+ years" },
+  ],
+};
+const thr = {
+  opt: [{ l: "95%", v: "~2027" }, { l: "99%", v: "~2029" }, { l: "99.9%", v: "~2031" }],
+  real: [{ l: "95%", v: "~2030" }, { l: "99%", v: "~2033" }, { l: "99.9%", v: "~2035" }],
+  cons: [{ l: "95%", v: "~2033" }, { l: "99%", v: "~2036+" }, { l: "99.9%", v: "~2040+" }],
+};
+const urls = {
+  speed: ["https://metr.org/blog/2026-1-29-time-horizon-1-1/","https://epoch.ai/data/epoch-capabilities-index","https://epoch.ai/data/notable-ai-models","https://arxiv.org/abs/2412.04315"],
+  limits: ["https://www.swebench.com","https://arxiv.org/abs/2602.15327","https://arxiv.org/abs/2602.16666","https://waymo.com/safety/"],
+  experts: ["https://www.dwarkesh.com/p/dario-amodei-2","https://ai-2027.com","https://www.metaculus.com/questions/5121/"],
+};
+
+// Chart data
+const actualBase = [
+  { months: 0, score: 43, date: "'24.07", model: "3.5 Sonnet+4o", lx: 3, ly: 3 },
+  { months: 7, score: 62.3, date: "'25.02", model: "3.7 Sonnet", lx: 3.5, ly: 3 },
+  { months: 10, score: 72.7, date: "'25.05", model: "Sonnet 4", lx: -3.5, ly: 3 },
+  { months: 16, score: 80.9, date: "'25.11", model: "Opus 4.5", agents: "1", isSingularity: true, lx: -4, ly: -1 },
+  { months: 19, score: 80.8, date: "'26.02", model: "Opus 4.6", agents: "1~2", lx: 4, ly: 5 },
+];
+const realistic = [{months:19,score:80.8},{months:31,score:86},{months:43,score:90},{months:55,score:93},{months:67,score:95.5},{months:79,score:97.5},{months:91,score:98.5},{months:103,score:99.2},{months:115,score:99.5},{months:127,score:99.7},{months:139,score:99.85}];
+const optimistic = [{months:19,score:80.8},{months:31,score:89},{months:37,score:93},{months:43,score:95.5},{months:55,score:98},{months:67,score:99.2},{months:79,score:99.6},{months:91,score:99.85},{months:103,score:99.95}];
+const conservative = [{months:19,score:80.8},{months:31,score:83},{months:43,score:85.5},{months:55,score:88},{months:67,score:90.5},{months:79,score:92.5},{months:91,score:94},{months:103,score:95.5},{months:115,score:97},{months:127,score:98},{months:139,score:98.8}];
+const rmBase = [
+  { months:67,score:95.5,color:"#fbbf24",date:"~2030" },
+  { months:103,score:99.2,color:"#f97316",date:"~2033" },
+  { months:127,score:99.7,color:"#ef4444",date:"~2035" },
+  { months:139,score:99.85,color:"#a855f7",date:"~2036" },
+];
+
+const TOTAL=145, L=10, R=96, T=12, BOT=58, SMIN=35, SMAX=102;
+const gx=m=>L+(m/TOTAL)*(R-L);
+const gy=s=>BOT-((s-SMIN)/(SMAX-SMIN))*(BOT-T);
+const stag=[0,2.8,0,2.8,0];
+const pl=d=>d.map(p=>`${gx(p.months)},${gy(p.score)}`).join(" ");
+
+function App(){
+  const [hov,setHov]=useState(null);
+  const [showInfo,setShowInfo]=useState(false);
+  const [lang,setLang]=useState("kr");
+  const _=i[lang];
+  const actual=actualBase.map((a,idx)=>({...a,desc:_.descs[idx]}));
+  const rm=rmBase.map((m,idx)=>({...m,desc:_.mDescs[idx],agents:_.mAgents[idx]}));
+
+  const PPL=({list,color})=>list.map((p,j)=>(
+    <div key={j} style={{marginBottom:6}}>
+      <div style={{fontSize:13,fontWeight:700,color:"#e5e7eb"}}>{p.name}</div>
+      <div style={{fontSize:11,color:"#6b7280"}}>{lang==="kr"?(p.rk||p.role):(p.re||p.role)}</div>
+      <div style={{fontSize:11,color:color+"88",fontStyle:"italic"}}>"{p.quote||(lang==="kr"?p.qk:p.qe)}"</div>
+    </div>
+  ));
+
+  const FW=({items,color,bc,urlList})=>items.map((f,j)=>(
+    <div key={j} style={{padding:"5px 0",borderBottom:j<items.length-1?`1px solid ${bc}`:"none"}}>
+      <div style={{fontSize:12,color:"#e5e7eb",fontWeight:600}}>{f.n}</div>
+      <div style={{fontSize:11,color:"#9ca3af",margin:"2px 0"}}>{f.d}</div>
+      <div style={{fontSize:11,color:color+"88",margin:"2px 0"}}>{_.contrib}{f.w}</div>
+      <a href={urlList[j]} target="_blank" rel="noopener" style={{fontSize:10,color:color+"55",textDecoration:"none"}}>
+        {urlList[j].replace("https://","").replace("www.","")}
+      </a>
+    </div>
+  ));
+
+  const Card=({cfg,color,bg,bd,pKey,tKey})=>(
+    <div style={{flex:1,background:bg,borderRadius:8,padding:"12px 12px 10px",border:`1px solid ${bd}`}}>
+      <div style={{fontSize:14,fontWeight:800,color,marginBottom:6}}>{cfg.t}</div>
+      <div style={{fontSize:12,color:"#6b7280",marginBottom:8,lineHeight:1.4,whiteSpace:"pre-line"}}>{cfg.d}</div>
+      <div style={{borderTop:`1px solid ${bd}`,paddingTop:6,marginBottom:6}}>
+        <div style={{fontSize:12,color,fontWeight:700,marginBottom:4}}>{_.keyPeople}</div>
+        <PPL list={ppl[pKey]} color={color}/>
+      </div>
+      <div style={{borderTop:`1px solid ${bd}`,paddingTop:6}}>
+        <div style={{fontSize:12,color,fontWeight:700,marginBottom:4}}>{_.threshold}</div>
+        {thr[tKey].map((th,j)=>(
+          <div key={j} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0"}}>
+            <span style={{color:"#9ca3af"}}>{th.l}</span>
+            <span style={{color,fontWeight:700}}>{th.v}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const bold=(text)=>{
+    const parts=text.split("**");
+    return parts.map((p,j)=>j%2===1?React.createElement('span',{key:j,style:{color:"#e5e7eb"}},p):React.createElement('span',{key:j},p));
+  };
+
+  return(
+  <div style={{background:"#0a0e1a",minHeight:"100vh",padding:"24px 16px",fontFamily:"'Inter',-apple-system,sans-serif",color:"#e0e0e0"}}>
+  <div style={{maxWidth:1100,margin:"0 auto"}}>
+
+    {/* Header + toggle */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+      <h1 style={{fontSize:26,fontWeight:800,color:"#fff",margin:0}}>{_.title}</h1>
+      <div style={{display:"flex",background:"#1e293b",borderRadius:6,overflow:"hidden",border:"1px solid #334155"}}>
+        {["kr","en"].map(l=>(
+          <button key={l} onClick={()=>setLang(l)} style={{
+            padding:"6px 14px",fontSize:12,fontWeight:700,border:"none",cursor:"pointer",
+            background:lang===l?"#00d4ff":"transparent",color:lang===l?"#0a0e1a":"#6b7280",
+          }}>{l==="kr"?"KR":"ENG"}</button>
+        ))}
+      </div>
+    </div>
+
+    {/* ===== CHART ===== */}
+    <div style={{background:"#111827",borderRadius:14,border:"1px solid #1e293b",padding:"6px 2px 2px"}}>
+      <svg viewBox="0 0 100 84" style={{width:"100%",display:"block"}}>
+        <defs>
+          <filter id="glow"><feGaussianBlur stdDeviation="0.35"/></filter>
+          <filter id="glowY"><feGaussianBlur stdDeviation="0.25"/></filter>
+        </defs>
+
+        <text x={2.5} y={(T+BOT)/2} fill="#00d4ff" fontSize="1.3" fontWeight="700" textAnchor="middle"
+          transform={`rotate(-90,2.5,${(T+BOT)/2})`} fillOpacity={0.5}>{_.yLabel}</text>
+        <text x={(L+R)/2} y={BOT+5.5} fill="#00d4ff" fontSize="1.3" fontWeight="700" textAnchor="middle"
+          fillOpacity={0.5}>{_.xLabel}</text>
+
+        {/* Chart explanation note box */}
+        <g>
+          <rect x={2} y={0.8} width={35} height={9.5} rx={0.7} fill="#0f172a" fillOpacity={0.9} stroke="#ffffff" strokeWidth={0.12} strokeOpacity={0.3}/>
+          <rect x={2} y={0.8} width={0.45} height={9.5} rx={0.2} fill="#ffffff" fillOpacity={0.6}/>
+          <text x={3.2} y={2.6} fill="#ffffff" fontSize="1.4" fontWeight="800" fillOpacity={0.95}>Note</text>
+          <text x={3.2} y={4.4} fill="#ffffff" fontSize="1.35" fontWeight="600" fillOpacity={0.9}>
+            {_.chartNote.map((line,idx)=>
+              <tspan key={idx} x={3.2} dy={idx===0?0:1.6}>{line}</tspan>)}
+          </text>
+        </g>
+
+        {[40,50,60,70,80,90,95,99,100].map(v=>(
+          <g key={v}>
+            <line x1={L} y1={gy(v)} x2={R} y2={gy(v)} stroke={v===80?"#475569":"#ffffff06"}
+              strokeWidth={v===80?0.15:0.06} strokeDasharray={v===80?"0.6,0.3":"none"}/>
+            <text x={L-1.2} y={gy(v)+0.5} textAnchor="end" fill={v===80?"#94a3b8":"#374151"}
+              fontSize="1.4" fontWeight={v===80?700:400}>{v}%</text>
+          </g>
+        ))}
+        <text x={R+0.5} y={gy(80)+0.5} fill="#64748b" fontSize="1.15" fontWeight="600">{_.baseline}</text>
+        <text x={R+0.5} y={gy(95)+0.5} fill="#f59e0b55" fontSize="0.95">95%</text>
+        <text x={R+0.5} y={gy(99)+0.5} fill="#ef444455" fontSize="0.95">99%</text>
+
+        <line x1={gx(16)} y1={T-3} x2={gx(16)} y2={BOT} stroke="#00d4ff" strokeWidth={0.07} strokeOpacity={0.3} strokeDasharray="0.3,0.2"/>
+
+        <polyline points={pl(conservative)} fill="none" stroke="#ef4444" strokeWidth={0.12} strokeDasharray="0.3,0.4" strokeOpacity={0.35} strokeLinecap="round" strokeLinejoin="round"/>
+        <polyline points={pl(optimistic)} fill="none" stroke="#10b981" strokeWidth={0.12} strokeDasharray="0.3,0.4" strokeOpacity={0.35} strokeLinecap="round" strokeLinejoin="round"/>
+
+        <text x={gx(43)} y={gy(95.5)-1.2} fill="#10b981" fontSize="1.05" fontWeight="700" fillOpacity={0.6}>{_.scenLabels[0]}</text>
+        <text x={gx(43)} y={gy(90)+0.4} fill="#fbbf24" fontSize="1.1" fontWeight="700">{_.scenLabels[1]}</text>
+        <text x={gx(43)} y={gy(85.5)+2} fill="#ef4444" fontSize="1.05" fontWeight="700" fillOpacity={0.6}>{_.scenLabels[2]}</text>
+
+        <polyline points={actual.map(m=>`${gx(m.months)},${gy(m.score)}`).join(" ")} fill="none" stroke="#00d4ff" strokeWidth={0.32} strokeLinecap="round" strokeLinejoin="round" filter="url(#glow)"/>
+        <polyline points={actual.map(m=>`${gx(m.months)},${gy(m.score)}`).join(" ")} fill="none" stroke="#00d4ff" strokeWidth={0.24} strokeLinecap="round" strokeLinejoin="round"/>
+
+        <polyline points={pl(realistic)} fill="none" stroke="#fbbf24" strokeWidth={0.28} strokeDasharray="0.8,0.35" strokeLinecap="round" strokeLinejoin="round" filter="url(#glowY)"/>
+        <polyline points={pl(realistic)} fill="none" stroke="#fbbf24" strokeWidth={0.2} strokeDasharray="0.8,0.35" strokeLinecap="round" strokeLinejoin="round"/>
+
+        {/* Actual data points */}
+        {actual.map((m,idx)=>{const cx=gx(m.months),cy=gy(m.score),isH=hov===idx,lx=cx+m.lx,ly=cy+m.ly;
+          return(<g key={idx} onMouseEnter={()=>setHov(idx)} onMouseLeave={()=>setHov(null)} style={{cursor:"pointer"}}>
+            <line x1={cx} y1={cy} x2={cx} y2={BOT} stroke="#00d4ff" strokeWidth={0.12} strokeOpacity={0.3} strokeDasharray="0.4,0.4"/>
+            <circle cx={cx} cy={cy} r={isH?0.9:0.55} fill={m.isSingularity?"#00d4ff":"#fff"} stroke="#00d4ff" strokeWidth={0.12} opacity={isH?1:0.85}/>
+            {m.agents&&(()=>{
+              const exp=`^${m.agents}`;
+              const tw=5*0.7+exp.length*0.42+1.2;
+              const bx=cx+m.lx-tw/2;
+              const by=ly-6;
+              const col=m.isSingularity?"#00d4ff":"#fbbf24";
+              return(<g>
+                <rect x={bx} y={by} width={tw} height={2.2} rx={0.5} fill={col} fillOpacity={0.12} stroke={col} strokeWidth={0.06}/>
+                <text x={cx+m.lx} y={by+1.55} textAnchor="middle" fill={col} fontWeight="700">
+                  <tspan fontSize="1.3">Agent</tspan><tspan fontSize="0.9" dy="-0.45">{exp}</tspan>
+                </text>
+              </g>);
+            })()}
+            <text x={cx+m.lx} y={ly-2} textAnchor="middle" fill={m.isSingularity?"#00d4ff":"#fff"} fontSize="1.6" fontWeight="800">{m.score}%</text>
+            <text x={cx+m.lx} y={ly-0.3} textAnchor="middle" fill="#e5e7eb" fontSize="1.1" fontWeight="600">{m.desc}</text>
+            <text x={cx} y={BOT+2+stag[idx]} textAnchor="middle" fill="#9ca3af" fontSize="1.1">{m.date}</text>
+            <text x={cx} y={BOT+2+stag[idx]+1.3} textAnchor="middle" fill="#6b7280" fontSize="0.85">{m.model}</text>
+          </g>);
+        })}
+
+        {/* Realistic milestones */}
+        {rm.map((m,idx)=>{const cx=gx(m.months),cy=gy(m.score),ly=idx%2===0?-4:4;
+          const exp=`^${m.agents}`;
+          const atw=5*0.7+exp.length*0.42+1.2;
+          return(<g key={`rm${idx}`}>
+            <line x1={cx} y1={cy} x2={cx} y2={BOT} stroke={m.color} strokeWidth={0.1} strokeOpacity={0.25} strokeDasharray="0.4,0.4"/>
+            <circle cx={cx} cy={cy} r={0.4} fill={m.color} fillOpacity={0.3} stroke={m.color} strokeWidth={0.08}/>
+            <rect x={cx-atw/2} y={cy+ly-3.8} width={atw} height={2.2} rx={0.5} fill={m.color} fillOpacity={0.12} stroke={m.color} strokeWidth={0.06}/>
+            <text x={cx} y={cy+ly-2.25} textAnchor="middle" fill={m.color} fontWeight="700">
+              <tspan fontSize="1.3">Agent</tspan><tspan fontSize="0.9" dy="-0.45">{exp}</tspan>
+            </text>
+            <text x={cx} y={cy+ly} textAnchor="middle" fill={m.color} fontSize="1.6" fontWeight="800">{m.score}%</text>
+            <text x={cx} y={cy+ly+1.6} textAnchor="middle" fill="#e5e7eb" fontSize="1.1" fontWeight="600">{m.desc}</text>
+            <text x={cx} y={BOT+2} textAnchor="middle" fill="#d1d5db" fontSize="1.3" fontWeight="700">{m.date}</text>
+            <text x={cx} y={BOT+3.2} textAnchor="middle" fill="#fbbf2455" fontSize="0.85">{_.est}</text>
+          </g>);
+        })}
+
+        {/* X axis year ticks */}
+        {[2026,2027,2028,2029,2030,2031,2032,2033,2034,2035,2036].map(yr=>{const cx=gx((yr-2024)*12);
+          return(<g key={`yr${yr}`}><line x1={cx} y1={BOT} x2={cx} y2={BOT+0.8} stroke="#374151" strokeWidth={0.08}/>
+            <text x={cx} y={BOT+2.2} textAnchor="middle" fill="#4b5563" fontSize="1.2" fontWeight="500">'{String(yr).slice(2)}</text></g>);
+        })}
+
+        {/* Legend */}
+        <g transform="translate(10,77)">
+          <line x1={0} y1={0} x2={2.5} y2={0} stroke="#00d4ff" strokeWidth={0.2}/><text x={3.3} y={0.4} fill="#9ca3af" fontSize="1.05">{_.leg.actual}</text>
+          <line x1={10} y1={0} x2={12.5} y2={0} stroke="#fbbf24" strokeWidth={0.2} strokeDasharray="0.5,0.25"/><text x={13.3} y={0.4} fill="#fbbf24" fontSize="1.05" fontWeight="600">{_.leg.realistic}</text>
+          <line x1={24} y1={0} x2={26.5} y2={0} stroke="#10b981" strokeWidth={0.12} strokeDasharray="0.3,0.4" strokeOpacity={0.5}/><text x={27.3} y={0.4} fill="#10b98188" fontSize="1.05">{_.leg.optimistic}</text>
+          <line x1={38} y1={0} x2={40.5} y2={0} stroke="#ef4444" strokeWidth={0.12} strokeDasharray="0.3,0.4" strokeOpacity={0.5}/><text x={41.3} y={0.4} fill="#ef444488" fontSize="1.05">{_.leg.conservative}</text>
+          <line x1={55} y1={0} x2={57.5} y2={0} stroke="#475569" strokeWidth={0.15} strokeDasharray="0.5,0.3"/><text x={58.3} y={0.4} fill="#9ca3af" fontSize="1.05">{_.leg.baseline}</text>
+        </g>
+      </svg>
+    </div>
+
+    {/* ===== Y-AXIS EXPLANATION ===== */}
+    <div style={{background:"#0c1929",borderRadius:10,padding:"16px 18px",marginTop:14,border:"1px solid #164e63",borderLeft:"3px solid #00d4ff"}}>
+      <div style={{fontSize:14,fontWeight:700,color:"#00d4ff",marginBottom:8}}>{_.yAxisTitle}</div>
+      <div style={{fontSize:12,color:"#b0c4d8",lineHeight:1.7,marginBottom:10}}>
+        {_.yAxisDef}<span style={{color:"#e5e7eb"}}>{_.yAxisHL}</span>{_.yAxisDef2}
+        <br/>{_.yAxisScore}
+      </div>
+      <div style={{fontSize:12,color:"#6b7280",marginBottom:6}}>{_.yAxisEx}</div>
+      <div style={{fontSize:11.5,color:"#9ca3af",lineHeight:1.9,paddingLeft:10}}>
+        {_.ex.map((e,j)=><span key={j}>{e}<br/></span>)}
+        <span style={{color:"#4b5563"}}>{_.exFail}</span>
+      </div>
+      <div style={{marginTop:10,paddingTop:8,borderTop:"1px solid #1e293b",fontSize:11,color:"#4b5563",lineHeight:1.5}}>{_.yAxisNote}</div>
+    </div>
+
+    {/* ===== SCENARIO COMPARISON ===== */}
+    <div style={{background:"#111827",borderRadius:10,padding:"20px 20px 16px",marginTop:14,border:"1px solid #1e293b"}}>
+      <h3 style={{fontSize:17,fontWeight:800,color:"#fff",margin:"0 0 14px"}}>{_.scenarioTitle}</h3>
+      <div style={{display:"flex",gap:8}}>
+        <Card cfg={_.opt} color="#10b981" bg="#10b98108" bd="#10b98120" pKey="opt" tKey="opt"/>
+        <Card cfg={_.real} color="#fbbf24" bg="#fbbf2410" bd="#fbbf2430" pKey="real" tKey="real"/>
+        <Card cfg={_.cons} color="#ef4444" bg="#ef444408" bd="#ef444420" pKey="cons" tKey="cons"/>
+      </div>
+    </div>
+
+    {/* Warning */}
+    <div style={{background:"#1a1020",borderRadius:8,padding:"12px 16px",marginTop:14,border:"1px solid #332233",fontSize:13,color:"#bb7788"}}>
+      <strong>⚠️</strong> {_.warning}
+    </div>
+
+    {/* ===== SOURCES ===== */}
+    <div style={{background:"#111827",borderRadius:10,padding:"16px 18px",marginTop:14,border:"1px solid #1e293b"}}>
+      <div onClick={()=>setShowInfo(!showInfo)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",userSelect:"none"}}>
+        <h3 style={{fontSize:15,fontWeight:700,color:"#9ca3af",margin:0}}>{_.srcTitle}</h3>
+        <span style={{fontSize:13,color:"#4b5563"}}>{showInfo?_.collapse:_.expand}</span>
+      </div>
+
+      {showInfo&&(
+      <div style={{marginTop:12}}>
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:13,fontWeight:700,color:"#00d4ff",marginBottom:6}}>{_.actTitle}</div>
+          <div style={{fontSize:12,color:"#9ca3af",lineHeight:1.6}}>{_.actDesc}</div>
+          <a href="https://www.swebench.com" target="_blank" rel="noopener" style={{fontSize:11,color:"#00d4ff88",textDecoration:"none"}}>→ swebench.com (Princeton NLP)</a>
+        </div>
+
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:13,fontWeight:700,color:"#fbbf24",marginBottom:4}}>{_.fwTitle}</div>
+          <div style={{fontSize:12,color:"#6b7280",marginBottom:10,lineHeight:1.5}}>
+            {_.fwIntro}<br/>{_.fwIntro2}
+            <span style={{color:"#10b981"}}>{_.fwQ[0]}</span> →
+            <span style={{color:"#f97316"}}>{_.fwQ[1]}</span> →
+            <span style={{color:"#60a5fa"}}>{_.fwQ[2]}</span>
+          </div>
+
+          <div style={{background:"#10b98108",borderRadius:8,padding:"8px 10px",marginBottom:8,border:"1px solid #10b98115"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#10b981",marginBottom:6}}>{_.cat[0]}</div>
+            <FW items={_.speed} color="#10b981" bc="#10b98110" urlList={urls.speed}/>
+          </div>
+          <div style={{background:"#f9731608",borderRadius:8,padding:"8px 10px",marginBottom:8,border:"1px solid #f9731615"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#f97316",marginBottom:6}}>{_.cat[1]}</div>
+            <FW items={_.limits} color="#f97316" bc="#f9731610" urlList={urls.limits}/>
+          </div>
+          <div style={{background:"#60a5fa08",borderRadius:8,padding:"8px 10px",border:"1px solid #60a5fa15"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#60a5fa",marginBottom:6}}>{_.cat[2]}</div>
+            <FW items={_.experts} color="#60a5fa" bc="#60a5fa10" urlList={urls.experts}/>
+          </div>
+        </div>
+
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:700,color:"#f87171",marginBottom:6}}>{_.cavTitle}</div>
+          <div style={{fontSize:12,color:"#6b7280",lineHeight:1.8}}>
+            {_.cavs.map((c,j)=><span key={j}>• {bold(c)}<br/></span>)}
+            • {bold(_.cavBreak)}
+          </div>
+        </div>
+
+        <div style={{paddingTop:8,borderTop:"1px solid #1e293b",fontSize:10,color:"#374151",display:"flex",justifyContent:"space-between"}}>
+          <span>{_.meta[0]}</span><span>{_.meta[1]}</span>
+        </div>
+      </div>
+      )}
+    </div>
+
+  </div>
+  </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

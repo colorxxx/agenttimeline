@@ -215,7 +215,7 @@ const pl=d=>d.map(p=>`${gx(p.months)},${gy(p.score)}`).join(" ");
 function App(){
   const [hov,setHov]=useState(null);
   const [showInfo,setShowInfo]=useState(false);
-  const [lang,setLang]=useState("kr");
+  const [lang,setLang]=useState("en");
   const _=i[lang];
   const actual=actualBase.map((a,idx)=>({...a,desc:_.descs[idx]}));
   const rm=rmBase.map((m,idx)=>({...m,desc:_.mDescs[idx],agents:_.mAgents[idx]}));
